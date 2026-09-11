@@ -95,6 +95,63 @@ h2{
 section{ padding:16px 0; border-top:1px solid var(--line); }
 section:first-of-type{ border-top:none; padding-top:18px; }
 
+/* ---------- Search ---------- */
+.search-row{
+  position:relative;
+  display:flex; align-items:center; gap:8px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:0 12px;
+}
+.search-icon{ flex:0 0 auto; color:var(--ink-dim); }
+#searchInput{
+  flex:1; min-width:0;
+  background:none; border:none; outline:none;
+  color:var(--ink);
+  font-family:"Inter",sans-serif; font-size:0.9rem;
+  padding:12px 0;
+}
+#searchInput::placeholder{ color:var(--ink-dim); }
+.search-clear-btn{
+  flex:0 0 auto; background:none; border:none; color:var(--ink-dim);
+  font-size:0.9rem; cursor:pointer; padding:4px; line-height:1;
+}
+.search-clear-btn:active{ color:var(--danger); }
+
+#searchResults{
+  list-style:none; margin:8px 0 0; padding:0;
+  display:flex; flex-direction:column; gap:4px;
+  max-height:260px; overflow-y:auto;
+}
+#searchResults li{
+  display:flex; align-items:center; gap:8px;
+  background:var(--panel-2); border-radius:10px;
+  padding:8px 8px 8px 12px;
+}
+.search-result-text{
+  flex:1; min-width:0;
+  font-size:0.85rem; line-height:1.35; color:var(--ink);
+  cursor:pointer;
+  overflow:hidden; text-overflow:ellipsis;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+}
+.search-add-btn{
+  flex:0 0 auto; width:28px; height:28px; border-radius:50%;
+  border:1px solid var(--accent); background:none; color:var(--accent);
+  font-size:1.05rem; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.search-add-btn:active{ background:var(--accent); color:#1a0d06; }
+
+.search-pin{
+  width:16px; height:16px; border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);
+  background:#4A90D9;
+  border:2px solid #cfe3fb;
+  box-shadow:0 1px 4px rgba(0,0,0,0.4);
+}
+
 .section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 #markerCount{
   font-family:"Space Grotesk",sans-serif; font-size:0.75rem; color:var(--ink-dim);

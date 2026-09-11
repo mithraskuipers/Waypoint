@@ -21,7 +21,8 @@ const addModeBtn = el('addModeBtn'), locateBtn = el('locateBtn'), calcBtn = el('
       startFromLocationChk = el('startFromLocation'), roundTripChk = el('roundTrip'),
       panelEl = el('panel'), dragHandle = el('dragHandle'), toastEl = el('toast'),
       exportBtn = el('exportBtn'), importBtn = el('importBtn'), importFile = el('importFile'),
-      followBtn = el('followBtn'), followStatus = el('followStatus'), stopFollowBtn = el('stopFollowBtn');
+      followBtn = el('followBtn'), followStatus = el('followStatus'), stopFollowBtn = el('stopFollowBtn'),
+      searchInput = el('searchInput'), searchResultsEl = el('searchResults'), searchClearBtn = el('searchClear');
 
 /* ---------------- geometry ---------------- */
 
@@ -311,6 +312,114 @@ addModeBtn.addEventListener('click', () => {
   addModeBtn.lastChild.textContent = addMode ? ' Tap the map to place it' : ' Tap map to drop a marker';
 });
 
+/* ---------------- place search ---------------- */
+
+let searchDebounceTimer = null, searchAbortController = null, searchPreviewMarker = null;
+
+function shortenPlaceName(name) {
+  const parts = String(name).split(',').map(p => p.trim());
+  return parts.slice(0, 3).join(', ');
+}
+
+function clearSearchPreview() {
+  if (searchPreviewMarker) { map.removeLayer(searchPreviewMarker); searchPreviewMarker = null; }
+}
+
+function hideSearchResults() {
+  searchResultsEl.hidden = true;
+  searchResultsEl.innerHTML = '';
+}
+
+async function geocodeSearch(query) {
+  if (searchAbortController) searchAbortController.abort();
+  searchAbortController = new AbortController();
+  // Nominatim's public instance. For heavier use, point this at your own instance.
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=1&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, { signal: searchAbortController.signal });
+  if (!res.ok) throw new Error('http ' + res.status);
+  return res.json();
+}
+
+function renderSearchResults(results) {
+  searchResultsEl.innerHTML = '';
+  if (!results.length) { searchResultsEl.hidden = true; return; }
+
+  results.forEach(r => {
+    const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+    const label = shortenPlaceName(r.display_name);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="search-result-text">${escapeAttr(label)}</span>
+      <button class="search-add-btn" aria-label="Add marker here" title="Add as marker">+</button>`;
+
+    li.querySelector('.search-result-text').addEventListener('click', () => {
+      clearSearchPreview();
+      searchPreviewMarker = L.marker([lat, lng], {
+        icon: L.divIcon({ className: '', html: '<div class="search-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 18] }),
+        keyboard: false
+      }).addTo(map);
+      map.flyTo([lat, lng], Math.max(map.getZoom(), 15));
+    });
+
+    li.querySelector('.search-add-btn').addEventListener('click', ev => {
+      ev.stopPropagation();
+      clearSearchPreview();
+      addMarkerAt(lat, lng, label);
+      searchInput.value = '';
+      searchClearBtn.hidden = true;
+      hideSearchResults();
+    });
+
+    searchResultsEl.appendChild(li);
+  });
+  searchResultsEl.hidden = false;
+}
+
+async function runSearch(query) {
+  query = query.trim();
+  if (query.length < 3) { hideSearchResults(); return; }
+  try {
+    const results = await geocodeSearch(query);
+    renderSearchResults(results);
+  } catch (e) {
+    if (e.name !== 'AbortError') hideSearchResults();
+  }
+}
+
+searchInput.addEventListener('input', () => {
+  searchClearBtn.hidden = !searchInput.value;
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => runSearch(searchInput.value), 450);
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    clearTimeout(searchDebounceTimer);
+    runSearch(searchInput.value);
+  } else if (e.key === 'Escape') {
+    hideSearchResults();
+  }
+});
+
+searchInput.addEventListener('focus', () => {
+  if (searchResultsEl.children.length) searchResultsEl.hidden = false;
+  expandPanelOnMobile();
+});
+
+searchClearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  searchClearBtn.hidden = true;
+  clearSearchPreview();
+  hideSearchResults();
+  searchInput.focus();
+});
+
+document.addEventListener('click', e => {
+  if (e.target === searchInput || searchResultsEl.contains(e.target)) return;
+  hideSearchResults();
+});
+
 /* ---------------- geolocation ---------------- */
 
 function updateLocationMarker(coords) {
@@ -509,11 +618,11 @@ function updateFollowUI(seq) {
     followBtn.disabled = false;
   } else if (atEnd) {
     if (roundTripChk.checked) {
-      followStatus.textContent = `At ${seq[idx].name} \u2014 last stop.`;
+      followStatus.textContent = `At ${seq[idx].name}. Last stop.`;
       label.textContent = `Path back to ${seq[0].name}`;
       followBtn.disabled = false;
     } else {
-      followStatus.textContent = `You\u2019ve reached ${seq[idx].name} \u2014 the last stop.`;
+      followStatus.textContent = `You\u2019ve reached ${seq[idx].name}, the last stop.`;
       label.textContent = 'Route complete';
       followBtn.disabled = true;
     }
@@ -535,7 +644,7 @@ async function showLeg(a, b) {
     const latlngs = [L.latLng(a.lat, a.lng), L.latLng(b.lat, b.lng)];
     renderPolylineWithArrows(latlngs, { dashed: true });
     map.fitBounds(L.latLngBounds(latlngs).pad(0.3));
-    toast(`${fmtDist(haversine(a, b))} to ${b.name} (straight line \u2014 live routing unavailable)`);
+    toast(`${fmtDist(haversine(a, b))} to ${b.name} (straight line, live routing unavailable)`);
   }
 }
 
