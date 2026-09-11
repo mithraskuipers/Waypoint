@@ -169,13 +169,27 @@ function arrowSpacing(latlngs) {
 function renderPolylineWithArrows(latlngs, opts = {}) {
   clearRouteLayer();
   if (latlngs.length < 2) return null;
-  const line = L.polyline(latlngs, {
-    color: '#E2622B', weight: opts.dashed ? 4 : 5, opacity: 0.85,
-    dashArray: opts.dashed ? '2 10' : null
+
+  const casing = L.polyline(latlngs, {
+    color: '#E2622B', weight: opts.dashed ? 4 : 6, opacity: opts.dashed ? 0.55 : 0.32,
+    dashArray: opts.dashed ? '2 10' : null,
+    lineCap: 'round', lineJoin: 'round'
   });
+
+  // Thin bright dashes on top, animated so the pattern travels along the path
+  // in the direction it was drawn (start -> end), making the direction of
+  // travel obvious at a glance instead of relying on the arrow markers alone.
+  const flow = L.polyline(latlngs, {
+    color: '#F0805A', weight: 3.5, opacity: 0.95,
+    dashArray: '1 16',
+    lineCap: 'round', lineJoin: 'round',
+    className: 'route-flow-line'
+  });
+
   const arrows = placeArrowsAlong(latlngs, arrowSpacing(latlngs))
     .map(a => L.marker([a.lat, a.lng], { icon: arrowIcon(a.bearing), interactive: false, keyboard: false }));
-  routeLayerGroup = L.layerGroup([line, ...arrows]).addTo(map);
+
+  routeLayerGroup = L.layerGroup([casing, flow, ...arrows]).addTo(map);
   return routeLayerGroup;
 }
 

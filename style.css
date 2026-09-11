@@ -152,6 +152,13 @@ section:first-of-type{ border-top:none; padding-top:18px; }
   box-shadow:0 1px 4px rgba(0,0,0,0.4);
 }
 
+#searchSection{
+  position:sticky; top:0; z-index:20;
+  background:var(--panel);
+  border-bottom:1px solid var(--line);
+  padding-bottom:14px;
+}
+
 .section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 #markerCount{
   font-family:"Space Grotesk",sans-serif; font-size:0.75rem; color:var(--ink-dim);
@@ -314,6 +321,14 @@ section:first-of-type{ border-top:none; padding-top:18px; }
   border-right:5px solid transparent;
   border-bottom:11px solid var(--accent);
   filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+
+@keyframes route-flow{
+  to{ stroke-dashoffset:-34; }
+}
+.route-flow-line{
+  animation:route-flow 0.9s linear infinite;
+  filter:drop-shadow(0 0 3px rgba(240,128,90,0.7));
 }
 
 /* ================= MOBILE: bottom sheet ================= */
