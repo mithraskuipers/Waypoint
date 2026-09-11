@@ -17,7 +17,7 @@ if %errorlevel%==0 (
 )
 
 echo Starting Waypoint on http://localhost:%PORT%/ ...
-start "Waypoint server" /min cmd /c "%PYCMD% -m http.server %PORT%"
+start "Waypoint server" /min cmd /c "%PYCMD% "%~dp0serve.py" %PORT%"
 timeout /t 2 /nobreak >nul
 start "" "http://localhost:%PORT%/"
 

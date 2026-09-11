@@ -130,7 +130,30 @@ async function fetchOsrmRoute(points) {
   if (!res.ok) throw new Error('http ' + res.status);
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes || !data.routes.length) throw new Error(data.code || 'no route');
-  return data.routes[0];
+  return { route: data.routes[0], waypoints: data.waypoints || [] };
+}
+
+// OSRM snaps every input point to the nearest walkable path. When a marker
+// sits somewhere the pedestrian network doesn't reach directly (a bridge
+// closed to foot traffic, a courtyard, a spot just off any mapped path), that
+// snap can land a real distance away, making the route look like it bypassed
+// the marker entirely even though it's still visited and counted. Draw a
+// short dashed connector for any marker whose snap exceeds this distance so
+// it stays visually tied to the route.
+const SNAP_SPUR_THRESHOLD_M = 20;
+
+function computeSnapSpurs(points, waypoints) {
+  const spurs = [];
+  points.forEach((p, i) => {
+    const wp = waypoints[i];
+    if (!wp || !wp.location) return;
+    const snapped = { lat: wp.location[1], lng: wp.location[0] };
+    const snapDist = typeof wp.distance === 'number' ? wp.distance : haversine(p, snapped);
+    if (snapDist > SNAP_SPUR_THRESHOLD_M) {
+      spurs.push([L.latLng(p.lat, p.lng), L.latLng(snapped.lat, snapped.lng)]);
+    }
+  });
+  return spurs;
 }
 
 /* ---------------- direction arrows ---------------- */
@@ -186,10 +209,18 @@ function renderPolylineWithArrows(latlngs, opts = {}) {
     className: 'route-flow-line'
   });
 
+  // Short dashed connectors from a marker to the nearest point OSRM could
+  // actually snap the path to, for markers that sit off the walkable network.
+  const spurLines = (opts.spurs || [])
+    .filter(s => s.length === 2)
+    .map(s => L.polyline(s, {
+      color: '#F0805A', weight: 2.5, opacity: 0.8, dashArray: '2 6', lineCap: 'round'
+    }));
+
   const arrows = placeArrowsAlong(latlngs, arrowSpacing(latlngs))
     .map(a => L.marker([a.lat, a.lng], { icon: arrowIcon(a.bearing), interactive: false, keyboard: false }));
 
-  routeLayerGroup = L.layerGroup([casing, flow, ...arrows]).addTo(map);
+  routeLayerGroup = L.layerGroup([casing, flow, ...spurLines, ...arrows]).addTo(map);
   return routeLayerGroup;
 }
 
@@ -569,12 +600,16 @@ async function runRoute(optimize) {
   if (routePoints.length < 2) { routeNote.textContent = ''; return; }
 
   try {
-    const route = await fetchOsrmRoute(routePoints);
+    const { route, waypoints } = await fetchOsrmRoute(routePoints);
     const latlngs = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
-    renderPolylineWithArrows(latlngs);
-    map.fitBounds(L.latLngBounds(latlngs).pad(0.15));
+    const spurs = computeSnapSpurs(routePoints, waypoints);
+    renderPolylineWithArrows(latlngs, { spurs });
+    map.fitBounds(L.latLngBounds(latlngs.concat(spurs.flat())).pad(0.15));
     const realLegs = route.legs ? route.legs.map(l => l.distance) : haversineLegs;
     renderResult(seq, closed, realLegs, route.distance, route.duration, true);
+    if (spurs.length) {
+      routeNote.textContent = 'Walking path via OpenStreetMap routing (OSRM demo server). Dashed connectors mark stops that sit just off the mapped path.';
+    }
   } catch (e) {
     const latlngs = routePoints.map(p => L.latLng(p.lat, p.lng));
     renderPolylineWithArrows(latlngs, { dashed: true });
@@ -649,10 +684,11 @@ function updateFollowUI(seq) {
 
 async function showLeg(a, b) {
   try {
-    const route = await fetchOsrmRoute([a, b]);
+    const { route, waypoints } = await fetchOsrmRoute([a, b]);
     const latlngs = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
-    renderPolylineWithArrows(latlngs);
-    map.fitBounds(L.latLngBounds(latlngs).pad(0.3));
+    const spurs = computeSnapSpurs([a, b], waypoints);
+    renderPolylineWithArrows(latlngs, { spurs });
+    map.fitBounds(L.latLngBounds(latlngs.concat(spurs.flat())).pad(0.3));
     toast(`${fmtDist(route.distance)} to ${b.name} \u2022 about ${fmtTime(route.duration / 60)}`);
   } catch (e) {
     const latlngs = [L.latLng(a.lat, a.lng), L.latLng(b.lat, b.lng)];
