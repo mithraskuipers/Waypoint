@@ -535,11 +535,12 @@ function computeHaversineLegs(seq, closed) {
 
 function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m'; }
 function fmtTime(min) {
+  if (min < 1) return '< 1 min';
   const h = Math.floor(min / 60), m = Math.round(min % 60);
   return h > 0 ? `${h}h ${m}m` : `${m} min`;
 }
 
-function renderResult(seq, closed, legs, totalM, totalSec, isReal) {
+function renderResult(seq, closed, legDistances, legDurations, totalM, totalSec, isReal) {
   resultSummary.innerHTML = `
     <div class="stat"><b>${fmtDist(totalM)}</b><span>total distance</span></div>
     <div class="stat"><b>${fmtTime(totalSec / 60)}</b><span>est. walking time</span></div>`;
@@ -551,7 +552,9 @@ function renderResult(seq, closed, legs, totalM, totalSec, isReal) {
     const name = p.kind === 'start' ? 'Your location' : p.ref.name;
     const cls = p.kind === 'start' ? 'badge start' : 'badge';
     const label = p.kind === 'start' ? '\u25CE' : String(stopNum++);
-    const legTxt = i < legs.length ? fmtDist(legs[i]) + ' \u2192' : '';
+    const legTxt = i < legDistances.length
+      ? `<span class="leg-dist">${fmtDist(legDistances[i])} \u2192</span><span class="leg-time">${fmtTime(legDurations[i] / 60)}</span>`
+      : '';
     li.innerHTML = `<span class="${cls}">${label}</span><span>${escapeAttr(name)}</span><span class="leg">${legTxt}</span>`;
     resultList.appendChild(li);
   });
@@ -592,7 +595,8 @@ async function runRoute(optimize) {
 
   const haversineLegs = computeHaversineLegs(seq, closed);
   const haversineTotal = haversineLegs.reduce((a, b) => a + b, 0);
-  renderResult(seq, closed, haversineLegs, haversineTotal, haversineTotal / 1.3, false);
+  const haversineDurations = haversineLegs.map(d => d / 1.3);
+  renderResult(seq, closed, haversineLegs, haversineDurations, haversineTotal, haversineTotal / 1.3, false);
   routeNote.textContent = 'Calculating the walking path\u2026';
   renumberIcons(true);
 
@@ -606,7 +610,8 @@ async function runRoute(optimize) {
     renderPolylineWithArrows(latlngs, { spurs });
     map.fitBounds(L.latLngBounds(latlngs.concat(spurs.flat())).pad(0.15));
     const realLegs = route.legs ? route.legs.map(l => l.distance) : haversineLegs;
-    renderResult(seq, closed, realLegs, route.distance, route.duration, true);
+    const realDurations = route.legs ? route.legs.map(l => l.duration) : haversineDurations;
+    renderResult(seq, closed, realLegs, realDurations, route.distance, route.duration, true);
     if (spurs.length) {
       routeNote.textContent = 'Walking path via OpenStreetMap routing (OSRM demo server). Dashed connectors mark stops that sit just off the mapped path.';
     }
@@ -614,7 +619,7 @@ async function runRoute(optimize) {
     const latlngs = routePoints.map(p => L.latLng(p.lat, p.lng));
     renderPolylineWithArrows(latlngs, { dashed: true });
     map.fitBounds(L.latLngBounds(latlngs).pad(0.15));
-    renderResult(seq, closed, haversineLegs, haversineTotal, haversineTotal / 1.3, false);
+    renderResult(seq, closed, haversineLegs, haversineDurations, haversineTotal, haversineTotal / 1.3, false);
   }
 }
 
